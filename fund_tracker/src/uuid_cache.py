@@ -34,8 +34,12 @@ class UuidCache:
         # Attempt to resolve the UUID in both the "organizations" and "people" collections.
         collections = ("organizations", "people")
         for collection in collections:
-            url = f"https://api.crunchbase.com/v4/autocomplete/{collection}"
-            params = {"user_key": CRUNCHBASE_KEY, "query": vc_name.lower()}
+            url = "https://api.crunchbase.com/v4/data/autocompletes"
+            params = {
+                "user_key": CRUNCHBASE_KEY,
+                "query": vc_name.lower(),
+                "collection_ids": collection,
+            }
             try:
                 resp = requests.get(url, params=params, timeout=20)
                 resp.raise_for_status()
