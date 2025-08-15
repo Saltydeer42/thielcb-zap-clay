@@ -31,15 +31,33 @@ class UuidCache:
         if vc_name in self._store:
             return self._store[vc_name]
 
-        url = "https://api.crunchbase.com/v4/data/autocompletes"
-        params = {"user_key": CRUNCHBASE_KEY, "query": vc_name.lower(), "collection_ids": "organizations"}
-        resp = requests.get(url, params=params, timeout=20)
-        resp.raise_for_status()
-        hits = resp.json().get("entities", [])
-        if not hits:
-            _log.warning("No UUID found for %s", vc_name)
-            return None
-        uuid = hits[0]["identifier"]["uuid"]
-        self._store[vc_name] = uuid
-        self.save()
-        return uuid
+        # Attempt to resolve the UUID in both the "organizations" and "people" collections.
+        collections = ("organizations", "people")
+        for collection in collections:
+            url = f"https://api.crunchbase.com/v4/autocomplete/{collection}"
+            params = {"user_key": CRUNCHBASE_KEY, "query": vc_name.lower()}
+            try:
+                resp = requests.get(url, params=params, timeout=20)
+                resp.raise_for_status()
+            except requests.HTTPError as exc:
+                _log.debug("Autocomplete request for %s failed against collection %s: %s", vc_name, collection, exc)
+                continue
+
+            hits = resp.json().get("entities", [])
+            if not hits:
+                continue
+
+            # Entities in people autocomplete may not have nested "identifier" key.
+            top_hit = hits[0]
+            uuid = (
+                top_hit.get("identifier", {}).get("uuid")
+                or top_hit.get("uuid")
+            )
+
+            if uuid:
+                self._store[vc_name] = uuid
+                self.save()
+                return uuid
+
+        _log.warning("No UUID found for %s", vc_name)
+        return None

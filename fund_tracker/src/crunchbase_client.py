@@ -1,7 +1,7 @@
 import logging
 import requests
 import pendulum
-from typing import List
+from typing import List, Optional
 
 from .config import CRUNCHBASE_KEY
 from .models import InvestmentDeal
@@ -15,8 +15,34 @@ class CrunchbaseClient:
     def __init__(self, uuid_cache: UuidCache):
         self.cache = uuid_cache
 
-    def _search_body(self, investor_id: str, since_iso: str) -> dict:
-        """Return the JSON body for the Search API POST."""
+    def _search_body(self, investor_id: str, since_iso: str | None = None) -> dict:
+        """Return the JSON body for the Search API POST.
+
+        If ``since_iso`` is provided, we add a predicate to fetch deals announced
+        on or after that date (inclusive). When ``since_iso`` is *None* we omit
+        the date filter altogether, effectively requesting all historical
+        rounds associated with the investor.
+        """
+
+        query = [
+            {
+                "type": "predicate",
+                "field_id": "investor_identifiers",
+                "operator_id": "includes",
+                "values": [investor_id],
+            },
+        ]
+
+        if since_iso:
+            query.append(
+                {
+                    "type": "predicate",
+                    "field_id": "announced_on",
+                    "operator_id": "gte",
+                    "values": [since_iso],
+                }
+            )
+
         return {
             "field_ids": [
                 "identifier",
@@ -24,34 +50,25 @@ class CrunchbaseClient:
                 "funded_organization_identifier",
                 "money_raised",
                 "investment_type",
-                "investor_identifiers"
+                "investor_identifiers",
             ],
             "order": [{"field_id": "announced_on", "sort": "desc"}],
-            "query": [
-                {
-                    "type": "predicate",
-                    "field_id": "investor_identifiers",
-                    "operator_id": "includes",
-                    "values": [investor_id]
-                },
-                {
-                    "type": "predicate",
-                    "field_id": "announced_on",
-                    "operator_id": "gte",
-                    "values": [since_iso]
-                }
-            ]
+            "query": query,
         }
 
     def get_recent_deals(
-        self, vc_name: str, days_back: int = 7
+        self, vc_name: str, days_back: Optional[int] = 7
     ) -> List[InvestmentDeal]:
         vc_uuid = self.cache.get_uuid(vc_name)
         if not vc_uuid:
             return []
 
-        since = pendulum.now().subtract(days=days_back).to_date_string()
-        body = self._search_body(vc_uuid, since)
+        since_iso = (
+            None
+            if not days_back or days_back <= 0
+            else pendulum.now().subtract(days=days_back).to_date_string()
+        )
+        body = self._search_body(vc_uuid, since_iso)
         params = {"user_key": CRUNCHBASE_KEY}
 
         resp = requests.post(self.BASE, params=params, json=body, timeout=30)
@@ -60,7 +77,14 @@ class CrunchbaseClient:
 
         deals: List[InvestmentDeal] = []
         for row in rows:
-            org = row["properties"]["funded_organization_identifier"]
+            props = row["properties"]
+            org = (
+                props.get("funded_organization_identifier")
+                or props.get("organization_identifier")
+            )
+            if org is None:
+                _log.debug("Skipping row without organization identifier: %s", row)
+                continue
             deals.append(
                 InvestmentDeal(
                     vc_name=vc_name,

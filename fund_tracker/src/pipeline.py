@@ -14,13 +14,13 @@ from .models import InvestmentDeal
 
 _log = logging.getLogger(__name__)
 
-def run_pipeline() -> List[InvestmentDeal]:
+def run_pipeline(days_back: int | None = 7) -> List[InvestmentDeal]:
     cache = UuidCache()
     cb = CrunchbaseClient(cache)
     zap = ZapierClient()
 
     all_deals: List[InvestmentDeal] = list(
-        chain.from_iterable(cb.get_recent_deals(name) for name in VC_FIRM_NAMES)
+        chain.from_iterable(cb.get_recent_deals(name, days_back=days_back) for name in VC_FIRM_NAMES)
     )
 
     # Deduplicate (same company may appear twice if >1 VC in round)

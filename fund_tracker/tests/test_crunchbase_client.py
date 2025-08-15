@@ -9,7 +9,7 @@ from src.uuid_cache import UuidCache
 
 def test_get_recent_deals(rm, tmp_path):
     cache = UuidCache(tmp_path / "cache.json")
-    cache._store["VC"] = "uuid‑vc"
+    cache._store["VC"] = "uuid-vc"
     since = pendulum.now().subtract(days=7).to_date_string()
 
     rm.post(
@@ -18,13 +18,13 @@ def test_get_recent_deals(rm, tmp_path):
             "entities": [
                 {
                     "properties": {
-                        "organization_identifier": {
+                        "funded_organization_identifier": {
                             "value": "Acme",
                             "permalink": "acme-co",
                         },
                         "announced_on": pendulum.now().to_date_string(),
                         "investment_type": "Seed",
-                        "money_raised_usd": 5000000,
+                        "money_raised": {"value": 5000000},
                     }
                 }
             ]
@@ -35,16 +35,20 @@ def test_get_recent_deals(rm, tmp_path):
 
     assert rm.last_request.json() == {
         "field_ids": [
-            "investment_type", "announced_on", "money_raised_usd",
-            "investor_organization_identifier", "organization_identifier"
+            "identifier",
+            "announced_on",
+            "funded_organization_identifier",
+            "money_raised",
+            "investment_type",
+            "investor_identifiers",
         ],
         "order": [{"field_id": "announced_on", "sort": "desc"}],
         "query": [
             {
                 "type": "predicate",
-                "field_id": "investor_organization_identifier",
+                "field_id": "investor_identifiers",
                 "operator_id": "includes",
-                "values": ["uuid‑vc"],
+                "values": ["uuid-vc"],
             },
             {
                 "type": "predicate",
