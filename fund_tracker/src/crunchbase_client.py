@@ -85,14 +85,19 @@ class CrunchbaseClient:
             if org is None:
                 _log.debug("Skipping row without organization identifier: %s", row)
                 continue
+            company_url = org.get("permalink") or ""
+            # If permalink looks like a bare domain, prepend protocol for Clay enrichment.
+            if company_url and not company_url.startswith("http"):
+                company_url = f"https://{company_url}"
+
             deals.append(
                 InvestmentDeal(
                     vc_name=vc_name,
                     company_name=org["value"],
-                    announced_date=row["properties"]["announced_on"],
-                    round_type=row["properties"]["investment_type"],
-                    amount_usd=row["properties"].get("money_raised", {"value": None})["value"],
-                    crunchbase_url=f'https://www.crunchbase.com/organization/{org["permalink"]}',
+                    announced_date=props["announced_on"],
+                    round_type=props["investment_type"],
+                    amount_usd=props.get("money_raised", {"value": None})["value"],
+                    company_url=company_url,
                 )
             )
         _log.info("%s – fetched %d deals", vc_name, len(deals))

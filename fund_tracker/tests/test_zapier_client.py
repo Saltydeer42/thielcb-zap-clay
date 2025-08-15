@@ -20,7 +20,7 @@ def test_send_deals(rm, monkeypatch):
                 announced_date="2025-07-20",
                 round_type="Seed",
                 amount_usd=1_000_000,
-                crunchbase_url="url",
+                company_url="https://acme.co",
             )
         ]
     )
