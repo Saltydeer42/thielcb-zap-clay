@@ -10,8 +10,19 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Ensure that submodules living under ``fund_tracker/src`` are discoverable as
+# ``fund_tracker.<module>``. We do this by extending the package’s ``__path__``
+# to include the *src* directory.
+
 SRC_DIR = Path(__file__).resolve().parent / "src"
+
 if SRC_DIR.is_dir():
+    # 1) Add to global import search so ``import cli`` still works if someone
+    #    runs the modules directly.
     sys.path.insert(0, str(SRC_DIR))
 
-del Path, sys, SRC_DIR  # clean namespace
+    # 2) Add to this package’s search path so ``import fund_tracker.cli`` works
+    #    (import machinery will now look inside src/ for submodules).
+    __path__.append(str(SRC_DIR))
+
+del Path, sys, SRC_DIR
